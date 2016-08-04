@@ -136,9 +136,10 @@ def dataWriteOracle(contents):
       cur.executemany(None,contents)
     except Exception as e:
         print('²åÈëoracle³ö´í:'+e)
-    cur.close()
-    conn.commit()
-    conn.close()
+    finally:
+        cur.close()
+        conn.commit()
+        conn.close()
 
 
 
