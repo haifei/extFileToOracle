@@ -4,6 +4,8 @@ import getopt
 import os,sys
 import time
 import datetime
+import itertools
+import shutil
 
 reload(sys)
 os.environ['NLS_LANG'] = 'AMERICAN_AMERICA.ZHS16GBK'
@@ -16,11 +18,12 @@ import cx_Oracle as oracle
 
 
 ##默认当前目录,下遍历查找 形如：NAVyyymmdd.txt 文件
-fileUrlDir='./'   #当前目录
+fileUrlDir='F:/worksparce/numpyTest/data'   #当前目录
 file_prefix='RELEASE'   #文件前缀
-file_format=['.txt']    #读取 文件格式
+file_suffixs=['.txt']    #读取 文件格式
 version='V2.0.0.2'      #注意 必须和 文本提供的版本一致
 encode='gb2312'
+dates=[datetime.datetime.strftime(datetime.date.today()- datetime.timedelta(days=1),'%Y%m%d')]  #匹配读取文件的 位昨天日期
 
 
 field_len_dir=OrderedDict([   #必须确保 字段排序有序，因为 程序是依照 定长来进行内容截取
@@ -36,7 +39,7 @@ field_len_dir=OrderedDict([   #必须确保 字段排序有序，因为 程序是依照 定长来进行
                            ),(
                                'fundname', dict(           #基金名称
                                                              type=str,    #字段类型
-                                                             len=50       #字段长度
+                                                             len=50      #字段长度
                                                              )
                            ),(
                                'fundcode', dict(         #基金代码
@@ -169,6 +172,7 @@ def analyzeFile(inputFileUrls):
                    else:
                        content.append(v['type'](value))
                    values=values[v['len']:]      #由于是定长处理，所以需要 将前面已经处理的内容 删除掉
+
                 contents.append(content)
     except Exception as e:
         print("解析数据文件出错:"+e)
@@ -189,31 +193,47 @@ def analyzeFile(inputFileUrls):
 
 #解析 调用脚本的 指令
 def obtainFiles(argv):
-    inputFileUrls=[os.path.join(fileUrlDir,url) for url in os.listdir(fileUrlDir)
-                   if os.path.isfile(url) and url.startswith(file_prefix) and os.path.splitext(url)[1] in file_format]
-
-    files=[]
-    # #需要 将上传的文本(utf-8)  编译成 gbk
-    for file in inputFileUrls:
-      real_path=os.path.realpath(file)
-      paths=os.path.split(real_path)
-      os.system('%s\\iconv.exe -f utf-8 -t gbk  %s >./%s' %(paths[0],file,paths[1]+'_1'))  #对数据进行 转码
-      os.system('del %s' %(real_path,))
-      files.append(paths[1]+'_1')
+    files=[]  #读取所有的文件列表
+    global  dates
 
     try:
-        opts,args=getopt.getopt(argv,"i:")
+        opts,args=getopt.getopt(argv,"id:")
     except getopt.GetoptError:
-        print"""
+           print"""
                Usage: python  extFileToOracle3.py  -i [inoutFileURl]\r\n
                Opetion:
                  -i: inputFileURl    the  absolute URl  of read file. The file  like  NAVyyyymmdd.txt .
               """
-        sys.exit(2)
+           sys.exit(2)
 
     for opt,arg in opts:
-        if opt=='-i':
+        if opt=='-i':   #这里给的必须是全局目录
             files.extend(arg.split(','))
+            return files
+        if opt=='-d':  #例如： 20170802,20170803
+            dates=[]
+            dates.extend(arg.split(','))
+
+
+    file_formats=[file_prefix+date+suffix for date,suffix in itertools.product(dates,file_suffixs)]
+    print(file_formats)
+    inputFileUrls=[os.path.join(fileUrlDir,url) for url in os.listdir(fileUrlDir)
+                   if os.path.isfile(os.path.join(fileUrlDir,url)) and  os.path.split(url)[1] in file_formats] #
+    print(inputFileUrls)
+
+    # # #需要 将上传的文本(utf-8)  编译成 gbk
+    for file in inputFileUrls:
+      real_path=os.path.realpath(file)
+      paths=os.path.split(real_path)
+
+      shutil.copy(real_path,'./')
+
+      print( sys.path[0]+'\\'+paths[1] )
+      os.system('%s\\iconv.exe -f utf-8 -t gbk  %s >%s' %(sys.path[0],file,paths[1]+'_1'))  #对数据进行 转码
+      os.system('del %s' %(sys.path[0]+'\\'+paths[1],))
+
+      files.append(paths[1]+'_1')
+
 
 
     if not files:
